@@ -3,3 +3,8 @@ C:\ProgramData\Autodesk\Revit\Macros\2022\Revit\AppHookup\LearnTheRevitAPI\AddIn
 C:\ProgramData\Autodesk\Revit\Macros\2022\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.csprojResolveAssemblyReference.cache
 C:\ProgramData\Autodesk\Revit\Macros\2022\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.dll
 C:\ProgramData\Autodesk\Revit\Macros\2022\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.pdb
+C:\ProgramData\Autodesk\Revit\Macros\2023\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.csprojResolveAssemblyReference.cache
+C:\ProgramData\Autodesk\Revit\Macros\2023\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.dll
+C:\ProgramData\Autodesk\Revit\Macros\2023\Revit\AppHookup\LearnTheRevitAPI\Addin\LearnTheRevitAPI.dll
+C:\ProgramData\Autodesk\Revit\Macros\2023\Revit\AppHookup\LearnTheRevitAPI\Addin\LearnTheRevitAPI.pdb
+C:\ProgramData\Autodesk\Revit\Macros\2023\Revit\AppHookup\LearnTheRevitAPI\Source\LearnTheRevitAPI\obj\Debug\LearnTheRevitAPI.pdb

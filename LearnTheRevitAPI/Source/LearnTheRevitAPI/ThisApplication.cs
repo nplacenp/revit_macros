@@ -311,7 +311,7 @@ namespace LearnTheRevitAPI
 				t.Start();
 				FamilyManager mgr = doc.FamilyManager;
 				
-				FamilyParameter param = mgr.AddParameter("New Parameter", BuiltInParameterGroup.PG_DATA, ParameterType.Text, false);
+				FamilyParameter param = mgr.AddParameter("New Parameter", ParameterTypeId.TextText, ParameterTypeId.TextText, false);
 				
 				for (int i = 1; i < 5; i++)
 				{
