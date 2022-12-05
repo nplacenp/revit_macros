@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Created by SharpDevelop.
  * User: nplac
  * Date: 11/16/2021
@@ -43,6 +43,8 @@ namespace LearnTheRevitAPI
 		}
 		public void selectElement()
 		{
+//			this prompts you to select a revit element, and then it returns information
+//			on the element name, ID, and assigned design option if applicable
 			UIDocument uidoc = this.ActiveUIDocument;
 			Document doc = uidoc.Document;
 			
@@ -60,6 +62,8 @@ namespace LearnTheRevitAPI
 		}
 		public void selectEdge()
 		{
+//			this script prompts you to select an edge of a revit element
+//			and returns the element name, ID, and length of thge edge
 			UIDocument uidoc = this.ActiveUIDocument;
 			Document doc = uidoc.Document;
 			
@@ -75,6 +79,8 @@ namespace LearnTheRevitAPI
 		}
 		public void selectFace()
 		{
+//			this script prompts you to select the face of a revit element
+//			and returns the element name, ID, and the area of the face
 			UIDocument uidoc = this.ActiveUIDocument;
 			Document doc = uidoc.Document;
 			
@@ -90,6 +96,7 @@ namespace LearnTheRevitAPI
 		}
 		public void setSelectedElements()
 		{
+//			this script grabs all of the wall elements in the file and adds them to your current selection in the document
 			UIDocument uidoc = this.ActiveUIDocument;
 			Document doc = uidoc.Document;
 			ICollection<ElementId> walls = new FilteredElementCollector(doc).OfClass(typeof(Wall)).ToElementIds();
@@ -98,6 +105,8 @@ namespace LearnTheRevitAPI
 		}
 		public void selectedElements()
 		{
+//			this script takes your current in-view selection and gives you a list of how many elements
+//			are selected, and then gives you the name of each.
 			UIDocument uidoc = this.ActiveUIDocument;
 			Document doc = uidoc.Document;
 			ICollection<ElementId> selectedIds = uidoc.Selection.GetElementIds();
@@ -114,12 +123,49 @@ namespace LearnTheRevitAPI
 		public void findElements()
 		{
 			Document doc = this.ActiveUIDocument.Document;
-			string info = "";
 			
-			ElementCategoryFilter doorFilter = new ElementCategoryFilter(BuiltInCategory.OST_Doors);
-			ElementCategoryFilter windowFilter = new ElementCategoryFilter(BuiltInCategory.OST_Windows);
-			LogicalOrFilter orFilter = new LogicalOrFilter(doorFilter, windowFilter);
+////			This snippet will create a task dialog that shows the element names of existing
+////			wall elements in the document
+//			string wallInfo = "";
+//			foreach(Element e in new FilteredElementCollector(doc).OfClass(typeof(Wall)))
+//			{
+//				wallInfo += e.Name + "\n";
+//			}
+//			TaskDialog.Show("Wall Elements", wallInfo);
+//			
+////			this snippet will create a task dialog that shows all of the existing 
+////			wall types in the document
+//			string wallTypeInfo = "";
+//			foreach(Element e in new FilteredElementCollector(doc).OfClass(typeof(WallType)))
+//			{
+//				wallTypeInfo += e.Name + "\n";
+//			}
+//			TaskDialog.Show("Wall Types", wallTypeInfo);
+//			
+////			this snippet will create a task dialog that shows the family name, family symbol name and
+////			family instance name for every door element in the document
+//			string familyInfo = "";
+//			foreach(Element e in new FilteredElementCollector(doc).OfClass(typeof(FamilyInstance))
+//			        .OfCategory(BuiltInCategory.OST_Doors))
+//			{
+//				FamilyInstance fi = e as FamilyInstance;
+//				FamilySymbol fs = fi.Symbol;
+//				Family family = fs.Family;
+//				familyInfo += family.Name + ": " + fs.Name + ": " + fi.Name + "\n";
+//			}
+//			TaskDialog.Show("Family names", familyInfo);
+
 			
+//			this will allow you to filter more than one category of elements
+
+//			VARIOUS TYPES OF FILTERS EXAMPLES
+
+////			door filter only
+//			ElementCategoryFilter doorFilter = new ElementCategoryFilter(BuiltInCategory.OST_Doors);
+////			window filter only
+//			ElementCategoryFilter windowFilter = new ElementCategoryFilter(BuiltInCategory.OST_Windows);
+////			combined filter for two filters above
+//			LogicalOrFilter orFilter = new LogicalOrFilter(doorFilter, windowFilter);
 			
 			IList<BuiltInCategory> catList = new List<BuiltInCategory>();
 			catList.Add(BuiltInCategory.OST_Doors);
@@ -127,37 +173,50 @@ namespace LearnTheRevitAPI
 			
 			ElementMulticategoryFilter multiCatFilter = new ElementMulticategoryFilter(catList);
 			
-			foreach(Element e in new FilteredElementCollector(doc)
-			        .OfClass(typeof(FamilyInstance))
-			        .WherePasses(multiCatFilter))
+			string familyInfo = "";
+//			You can also pass in the element active ID to filter by view with normal filteredelementcollectors
+			foreach (Element e in new FilteredElementCollector(doc, doc.ActiveView.Id)
+			         .OfClass(typeof(FamilyInstance))
+			         .WherePasses(multiCatFilter))
+			
 			{
 				FamilyInstance fi = e as FamilyInstance;
 				FamilySymbol fs = fi.Symbol;
 				Family family = fs.Family;
-				info += family.Name + ": " + fs.Name + ": " + fi.Name + "\n";
+				familyInfo += family.Name + ": " + fs.Name + ": " + fi.Name + "\n";
 			}
-			
-			TaskDialog.Show("elements", info);
+			TaskDialog.Show("Family names", familyInfo);
 			
 		}
 		public void newFilter()
 		{
 			Document doc = this.ActiveUIDocument.Document;
+//			ElementClassFilter classFilter = new ElementClassFilter(typeof(TextNote));
+////			this next line will allow you to filter by active view, with an option of inverting the
+////			filter to every view but your current active view -- can be used in other filters as well
+//			ElementOwnerViewFilter viewFilter = new ElementOwnerViewFilter(doc.ActiveView.Id, true);
+//			string text = "";
+//			foreach (Element e in new FilteredElementCollector(doc)
+//			         .WherePasses(classFilter)
+//			         .WherePasses(viewFilter))
+//			{
+//				TextNote textnote = e as TextNote;
+//				text += textnote.Text + "\n";
+//			}
+//			TaskDialog.Show("Text", text);
+
+//			The following is a way to get around the limitations of the element class filter that does not support revit.db class types 
 			ElementClassFilter classFilter = new ElementClassFilter(typeof(SpatialElement));
-//			ElementOwnerViewFilter viewFilter = new ElementOwnerViewFilter(doc.ActiveView.Id);
-			
-			
 			string text = "";
 			foreach (Element e in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rooms)
 			         .WherePasses(classFilter))
 			{
-//				TextNote textnote = e as TextNote;
 				text += e.Name + "\n";
 			}
 			TaskDialog.Show("Text", text);
 		}
 		public void boundingBoxFilter()
-		{
+		{	
 			Document doc = this.ActiveUIDocument.Document;
 			UIDocument uidoc = this.ActiveUIDocument;
 			
@@ -184,14 +243,119 @@ namespace LearnTheRevitAPI
 			         .OfClass(typeof(FamilyInstance))
 			         .OfCategory(BuiltInCategory.OST_Doors)
 			         .Cast<FamilyInstance>()
-			         .Where(m => m.Symbol.Family.Name.Contains("Double")))
+			         .Where(m => m.Symbol.Family.Name.Contains("Double"))
+			        )
 			{
+//				FamilyInstance fi = e as FamilyInstance;
 				FamilySymbol fs = fi.Symbol;
 				Family family = fs.Family;
 				info += family.Name + ": " + fs.Name + ": " + fi.Name + "\n";
-				
+
+//				the 'where' statement essentially replaces the if statement below with LINQ inquiries				
+//				if (family.Name.Contains("Double")){
+//					info += family.Name + ": " + fs.Name + ": " + fi.Name + "\n";
+//				}
+					
 			}
-			TaskDialog.Show("Elements", info);
+			
+			TaskDialog.Show("elements", info);
+		}
+		public void draftingViewsWithLinks()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			
+			IEnumerable<Element> allImports = new FilteredElementCollector(doc)
+				.OfClass(typeof(ImportInstance));
+//			Returns the count of all imported instances in the projects
+			TaskDialog.Show("data", allImports.Count().ToString());
+			
+//			casts the elements to import instances to you can use the islinked property
+			IEnumerable<Element> allImportsThatAreLinked = new FilteredElementCollector(doc)
+				.OfClass(typeof(ImportInstance))
+				.Cast<ImportInstance>()
+				.Where(q => q.IsLinked);
+			
+			TaskDialog.Show("AllImportsThatAreLinked", allImportsThatAreLinked.Count().ToString());
+			
+//			Only returning import instances that are links and owned by drafting views
+			IEnumerable<Element> allImportsThatAreLInkedAndOwnedByDraftingViews = new FilteredElementCollector(doc)
+				.OfClass(typeof(ImportInstance))
+				.Cast<ImportInstance>()
+				.Where(q => q.IsLinked && doc.GetElement(q.OwnerViewId) is ViewDrafting);
+			
+			TaskDialog.Show("allImportsThatAreLinkedAndOwnedByDraftingViews", allImportsThatAreLInkedAndOwnedByDraftingViews.Count().ToString());
+			
+			IEnumerable<Element> viewsThatContainLinkedImports = new FilteredElementCollector(doc)
+				.OfClass(typeof(ImportInstance))
+				.Cast<ImportInstance>()
+				.Where(q => q.IsLinked && doc.GetElement(q.OwnerViewId) is ViewDrafting)
+				.Select(q => doc.GetElement(q.OwnerViewId));
+			TaskDialog.Show("viewsThatContainLinkedImports", 
+			                string.Join(",", viewsThatContainLinkedImports.Select(q => q.Name).Distinct()));
+			
+		}
+//		public void FamilyTypesParameters()
+//		{
+//		}
+		public void FamilyTypesParameters()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			
+			if (!doc.IsFamilyDocument)
+			{
+				return;
+			}
+			
+			using (Transaction t = new Transaction(doc, "family test"))
+			{
+				t.Start();
+				FamilyManager mgr = doc.FamilyManager;
+				
+				FamilyParameter param = mgr.AddParameter("New Parameter", BuiltInParameterGroup.PG_DATA, ParameterType.Text, false);
+				
+				for (int i = 1; i < 5; i++)
+				{
+					FamilyType newType = mgr.NewType(i.ToString());
+					mgr.CurrentType = newType;
+					mgr.Set(param, "this value " + i);
+				}
+				
+				t.Commit();
+			}
+			
+		}
+		public void lineLength()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			UIDocument uidoc = this.ActiveUIDocument;
+			
+			ICollection<ElementId> ids = uidoc.Selection.GetElementIds();
+			IEnumerable<Element> elements = ids.Select(q => doc.GetElement(q));
+			
+			double total = 0;
+			foreach (Element e in elements)
+			{
+				Parameter lengthParam = e.get_Parameter(BuiltInParameter.CURVE_ELEM_LENGTH);
+				if (lengthParam == null)
+					continue;
+				double length = lengthParam.AsDouble();
+				total += length;
+			}
+			
+
+			
+			FormatOptions fo = doc.GetUnits().GetFormatOptions(SpecTypeId.Length);
+			
+			ForgeTypeId dut = fo.GetUnitTypeId();
+			
+//			doc.GetUnits().GetFormatOptions(SpecTypeId.Length).GetUnitTypeId())
+//			string unitLbl = LabelUtils.GetLabelForSpec(dut);
+			
+			double doubleConverted = UnitUtils.ConvertFromInternalUnits(
+			total, dut);
+			
+			
+			TaskDialog.Show("Total Length", total.ToString() + "\n" + doubleConverted);
 		}
 	}
 }
