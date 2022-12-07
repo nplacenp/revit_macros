@@ -13,6 +13,8 @@ using Autodesk.Revit.UI.Selection;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB.Architecture;
+using System.IO;
+
 
 namespace LearnTheRevitAPI
 {
@@ -356,6 +358,300 @@ namespace LearnTheRevitAPI
 			
 			
 			TaskDialog.Show("Total Length", total.ToString() + "\n" + doubleConverted);
+		}
+		
+		public void AllFilesInFolder()
+		{
+			string files = "";
+			string folder = @"C:\Users\nplac\Documents\RevitFamilies";
+				foreach(string filename in Directory.GetFiles(folder, "*.rfa"))
+			{
+				files += filename + Environment.NewLine;
+			}
+			TaskDialog.Show("Files", files);
+		}
+		
+		public void WriteTextFile()
+		{
+			
+			string tempPath = Path.GetTempPath();
+			
+			string myDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+			
+			string file = "test.txt";
+			string filename = Path.Combine(tempPath, file);
+			
+			if (File.Exists(filename))
+			{
+				File.Delete(filename);
+			}
+			
+			using (StreamWriter writer = new StreamWriter(filename, true))
+			{
+				writer.WriteLine("First Line");
+				writer.WriteLine("Second Line");
+			}
+
+		}
+		public void ReadTextFileFirstLine()
+		{
+			string filename = @"C:\Users\nplac\Documents\RevitApi\test.txt";
+
+			using (StreamReader reader = new StreamReader(filename, true))
+			{
+				TaskDialog.Show(filename, reader.ReadLine());
+			}
+
+		}
+		public void ReadTextFileAll()
+		{
+			string filename = @"C:\Users\nplac\Documents\RevitApi\test.txt";	
+			string fileContents = "";			
+
+			using (StreamReader reader = new StreamReader(filename, true))
+			{
+				string thisLine = "";
+				
+				while (thisLine != null)
+				{
+					thisLine = reader.ReadLine();
+					fileContents += thisLine + Environment.NewLine;
+				}
+				TaskDialog.Show(filename, fileContents);
+			}
+		}
+			
+		private string getFaceInfo(HostObject ho, IList<Reference> refList)
+		{
+			string s = "";
+			foreach (Reference r in refList)
+			{
+				Face f = ho.GetGeometryObjectFromReference(r) as Face;
+				s += "Face area = " + Math.Round(f.Area) + ", " + Environment.NewLine;
+				s += "Edge Lengths = ";
+				foreach (EdgeArray ea in f.EdgeLoops)
+				{
+					foreach(Edge e in ea)
+					{
+						s += Math.Round(e.ApproximateLength, 2) + ", ";
+					}
+				}
+				s += Environment.NewLine;
+			}
+			return s;
+		}
+		
+		public void HostFaces()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			string info = "";
+			foreach (HostObject hostObj in new FilteredElementCollector(doc).OfClass(typeof(HostObject)))
+			{
+				info += hostObj.Name + Environment.NewLine;
+				try
+				{
+					info += getFaceInfo(hostObj, HostObjectUtils.GetSideFaces(hostObj, ShellLayerType.Exterior));
+				}
+				catch (Autodesk.Revit.Exceptions.ArgumentException)
+				{}
+				
+				try
+				{
+					info += getFaceInfo(hostObj, HostObjectUtils.GetTopFaces(hostObj));
+				}
+				catch (Autodesk.Revit.Exceptions.ArgumentException)
+				{}
+				try
+				{
+					info += getFaceInfo(hostObj, HostObjectUtils.GetBottomFaces(hostObj));
+				}
+				catch (Autodesk.Revit.Exceptions.ArgumentException)
+				{}
+				
+				info += Environment.NewLine;
+				info += Environment.NewLine;
+
+			}
+			TaskDialog.Show("Host Objects", info);
+		}
+		
+		public void DeleteElement()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+
+			using (Transaction t = new Transaction(doc, "Delete Element"))
+			{
+			t.Start();
+			doc.Delete(uidoc.Selection.PickObject(ObjectType.Element).ElementId);
+			t.Commit();
+			}
+		}
+		
+		public void CreateTextNote()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			XYZ point = uidoc.Selection.PickPoint();
+			
+			using (Transaction t = new Transaction(doc, "Create Text Note"))
+			{
+				t.Start();
+				TextNoteOptions options = new TextNoteOptions();
+				options.HorizontalAlignment = HorizontalTextAlignment.Center;
+				options.TypeId = (new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).FirstOrDefault()).Id;
+				TextNote note = TextNote.Create(doc, doc.ActiveView.Id, point, 1,
+				                                "I am an API created text note" + Environment.NewLine + "Line 2 of the Text",
+				                                options);
+				
+				Parameter arcParameter = note.GetParameter(ParameterTypeId.ArcLeaderParam);
+				arcParameter.Set(1);
+				
+				Leader l = note.AddLeader(TextNoteLeaderTypes.TNLT_ARC_L);
+				
+				t.Commit();
+			}
+		}
+		
+		public void TextColor()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			TextNote tn = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element)) as TextNote;
+			TextNoteType tnType = tn.TextNoteType;
+			Parameter tnColor = tnType.GetParameter(ParameterTypeId.LineColor);
+			
+			System.Drawing.Color color = System.Drawing.Color.FromArgb(255,0,0);
+			
+			int colorInt = System.Drawing.ColorTranslator.ToWin32(color);
+			
+			using (Transaction t = new Transaction(doc, "Color"))
+			{
+				t.Start();
+				tnColor.Set(colorInt);
+				t.Commit();
+			}
+		}
+		
+		public void SetParamForGenericAnnotations()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			string parameterTypeError = "";
+			using (Transaction t = new Transaction(doc, "Set Annotation Parameters"))
+			       {
+						t.Start();
+						
+						foreach (FamilyInstance fi in new FilteredElementCollector(doc)
+						         .OfClass(typeof(FamilyInstance))
+						         .OfCategory(BuiltInCategory.OST_DetailComponents)
+						         .Cast<FamilyInstance>())
+						{
+							Parameter p = fi.LookupParameter("view");
+							if (p == null)
+								break;
+							
+							if (p.StorageType != StorageType.String)
+							{
+								parameterTypeError += fi.Symbol.Family.Name + " - " + p.StorageType.ToString() + "/n";
+								break;
+							}
+							Element ownerView = doc.GetElement(fi.OwnerViewId);
+							p.Set(ownerView.Name);
+						}
+						if (parameterTypeError != "")
+						{
+							TaskDialog.Show("Error", "Parameter must be a string.\n" + parameterTypeError);
+						}
+							
+						
+						t.Commit();
+			       }
+		}
+		
+		public void BuiltInParamsForElement()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element e = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			string data = "";
+			foreach (BuiltInParameter bip in Enum.GetValues(typeof(BuiltInParameter)))
+			{
+				try
+				{
+					Parameter p = e.GetParameter(ParameterUtils.GetParameterTypeId(bip)); //api difference with typeid
+					data += bip.ToString() + ": " + p.Definition.Name + ": ";
+					
+					if (p.StorageType == StorageType.String)
+						data += p.AsString();
+					else if (p.StorageType == StorageType.Integer)
+						data += p.AsInteger();
+					else if (p.StorageType == StorageType.Double)
+						data += p.AsDouble();
+					else if (p.StorageType == StorageType.ElementId)
+						data += "ID " + p.AsElementId().IntegerValue;
+				}
+				catch
+				{
+					
+				}
+			}
+			TaskDialog.Show("BI Params", data);
+		}
+		
+		public void KeynoteArea()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			List<Element> elements = new FilteredElementCollector(doc).WhereElementIsNotElementType().ToList();
+			List<Tuple<ElementId, double, string>> results = new List<Tuple<ElementId, double, string>>();
+			
+			foreach (Element e in elements)
+			{
+				Parameter areaParam = e.GetParameter(ParameterTypeId.HostAreaComputed);
+				if (areaParam == null)
+					continue;
+				
+				ElementId typeId = e.GetTypeId();
+				Element typeElement = doc.GetElement(typeId);
+				
+				Parameter keynoteParam = typeElement.GetParameter(ParameterTypeId.KeynoteParam);
+				
+				Tuple<ElementId, double, string> thisElementData = 
+					new Tuple<ElementId, double, string>(e.Id, areaParam.AsDouble(), keynoteParam.AsString());
+				
+				results.Add(thisElementData);
+			}
+			string resultText = "";
+			
+			foreach(Tuple<ElementId, double, string> t in results)
+			{
+				resultText += t.ToString();
+			}
+			
+			TaskDialog.Show("Results", resultText);//Watch is not working in SharpDevelop...
+		
+		}
+		
+		public void CreateWall()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Line l = Line.CreateBound(XYZ.Zero, new XYZ(10,10,0));
+			ElementId levelId = uidoc.Selection.PickObject(ObjectType.Element, "Select a level").ElementId;
+			
+			using (Transaction t = new Transaction(doc, "Create Wall"))
+			{
+				t.Start();
+				Wall w = Wall.Create(doc, l, levelId, false);
+				t.Commit();
+			}
 		}
 	}
 }
