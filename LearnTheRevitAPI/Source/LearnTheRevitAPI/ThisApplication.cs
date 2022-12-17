@@ -7,6 +7,7 @@
  * To change this template use Tools | Options | Coding | Edit Standard Headers.
  */
 using System;
+using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI.Selection;
@@ -14,7 +15,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB.Architecture;
 using System.IO;
-
+using Autodesk.Revit.DB.ExtensibleStorage;
 
 namespace LearnTheRevitAPI
 {
@@ -652,6 +653,464 @@ namespace LearnTheRevitAPI
 				Wall w = Wall.Create(doc, l, levelId, false);
 				t.Commit();
 			}
+		}
+		
+		public void NewDesk()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Level l = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().OrderBy(q => q.Elevation).First();
+			Family f = new FilteredElementCollector(doc).OfClass(typeof(Family)).FirstOrDefault(q => q.Name == "Desk") as Family;
+			FamilySymbol fs = f.GetFamilySymbolIds().Select(q => doc.GetElement(q)).First(q => q.Name == "72\" x 36\"") as FamilySymbol;
+			XYZ point = uidoc.Selection.PickPoint("Pick Point");
+			
+			using (Transaction t = new Transaction(doc, "Create Family Instance"))
+			{
+				t.Start();
+				
+				if (!fs.IsActive)
+					fs.Activate();
+				
+				FamilyInstance fi = doc.Create.NewFamilyInstance(point, fs, l, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+				
+				t.Commit();
+			}
+		}
+		
+		public void NewDoor()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Level l = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().OrderBy(q => q.Elevation).First();
+			Family f = new FilteredElementCollector(doc).OfClass(typeof(Family)).Cast<Family>()
+				.FirstOrDefault(q => q.FamilyCategoryId.IntegerValue == (int)BuiltInCategory.OST_Doors && q.Name == "Single-Flush") as Family;
+			FamilySymbol fs = f.GetFamilySymbolIds().Select(q => doc.GetElement(q)).Cast<FamilySymbol>().First(Queryable => Queryable.Name =="36\" x 84\"");
+			Reference r = uidoc.Selection.PickObject(ObjectType.Element, "Pick point on wall");
+			XYZ point = r.GlobalPoint;
+			Element host = doc.GetElement(r);
+			
+			using (Transaction t = new Transaction(doc, "Create Family Instance"))
+			{
+				t.Start();
+				
+				FamilyInstance fi = doc.Create.NewFamilyInstance(point, fs, host, l,
+                                             Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+				
+				t.Commit();
+			}
+						                                                    
+		}
+		
+		public void Rotate()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element e = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			
+			XYZ point = ((LocationPoint)e.Location).Point;
+			
+			XYZ point2 = point.Add(XYZ.BasisZ);
+			
+			Line axis = Line.CreateBound(point, point2);
+			
+			using (Transaction t = new Transaction(doc, "Rotate"))
+			{
+				t.Start();
+				
+				ElementTransformUtils.RotateElement(doc, e.Id, axis, DegreesToRadians(45));
+				
+				t.Commit();
+			}
+		}
+		
+		private double DegreesToRadians(double degrees)
+		{
+			return degrees * Math.PI / 180;
+		}
+		
+		public void GetElementWorkset()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element e = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			WorksetId workId = e.WorksetId;
+			WorksetTable table = doc.GetWorksetTable();
+			Workset workset = table.GetWorkset(workId);
+			TaskDialog.Show("Element", e.Name + Environment.NewLine + e.Id +
+			                Environment.NewLine + workset.Name + " - " + workset.Owner);
+		}
+		
+		public void Location()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element e = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			
+			Location location = e.Location;
+			if (location is LocationCurve)
+			{
+				LocationCurve lc = location as LocationCurve;
+				Curve c = lc.Curve;
+				XYZ end0 = c.GetEndPoint(0);
+				XYZ end1 = c.GetEndPoint(1);
+				TaskDialog.Show("Curve length + endpoints", "Curve Length - " + c.ApproximateLength.ToString()
+				               + Environment.NewLine + "Curve Endpoints:" + Environment.NewLine +
+					"Start Point - " + end0.ToString() + Environment.NewLine +
+					"End Point - " + end1.ToString());
+				
+//				this following line is just to show an example of a journal file comment implementation
+				doc.Application.WriteJournalComment("LocationMacro: " + end0.ToString() + " - " + end1.ToString(), false);
+				
+				if (c is Line)
+				{
+					Line line = c as Line;
+					TaskDialog.Show("Direction", line.Direction.ToString());
+				}
+				else
+				{
+					Transform t = c.ComputeDerivatives(0.5, true);
+					XYZ tangent = t.BasisX;
+					XYZ tangentNormal = tangent.Normalize();
+					TaskDialog.Show("Direction", "Tangent = " + tangent.ToString()
+					                + Environment.NewLine + "Tangent Normalized = "
+					                + tangentNormal.ToString());
+				}
+			}
+			else
+			{
+				LocationPoint lp = location as LocationPoint;
+				XYZ point = lp.Point;
+				TaskDialog.Show("Point", point.ToString());
+			}
+		}
+		
+		public void Volume()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Options options = new Options();
+			
+			foreach (Element e in new FilteredElementCollector(doc).OfClass(typeof(Stairs)))
+			{
+				CurveArray curves = new CurveArray();
+				List<Solid> solids = new List<Solid>();
+				AddCurvesAndSolids(e.get_Geometry(options), ref curves, ref solids);
+				foreach (Solid s in solids)
+				{
+					TaskDialog.Show("e", e.Name + " " + e.Id.IntegerValue + " " + s.Volume);
+				}
+			}
+		}
+		
+		private void AddCurvesAndSolids(Autodesk.Revit.DB.GeometryElement geomElem,
+                                ref Autodesk.Revit.DB.CurveArray curves,
+                                ref System.Collections.Generic.List<Autodesk.Revit.DB.Solid> solids)
+		{
+		    foreach (Autodesk.Revit.DB.GeometryObject geomObj in geomElem)
+		    {
+		        Autodesk.Revit.DB.Curve curve = geomObj as Autodesk.Revit.DB.Curve;
+		        if (null != curve)
+		        {
+		            curves.Append(curve);
+		            continue;
+		        }
+		        Autodesk.Revit.DB.Solid solid = geomObj as Autodesk.Revit.DB.Solid;
+		        if (null != solid)
+		        {
+		            solids.Add(solid);
+		            continue;
+		        }
+		        //If this GeometryObject is Instance, call AddCurvesAndSolids
+		        Autodesk.Revit.DB.GeometryInstance geomInst = geomObj as Autodesk.Revit.DB.GeometryInstance;
+		        if (null != geomInst)
+		        {
+		            Autodesk.Revit.DB.GeometryElement transformedGeomElem
+		              = geomInst.GetInstanceGeometry(geomInst.Transform);
+		            AddCurvesAndSolids(transformedGeomElem, ref curves, ref solids);
+		        }
+		    }
+		}
+	
+		public void setUnits()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			
+			Units units = doc.GetUnits();
+			FormatOptions foLength = units.GetFormatOptions(SpecTypeId.Length);
+			foLength.SetUnitTypeId(UnitTypeId.Millimeters);
+			foLength.SetSymbolTypeId(SymbolTypeId.Mm);
+			foLength.Accuracy = 10;
+			
+			FormatOptions foVolume = units.GetFormatOptions(SpecTypeId.Volume);
+			foVolume.SetUnitTypeId(UnitTypeId.CubicMeters);
+//			foVolume.SetSymbolTypeId(SymbolTypeId.MCaret3); // i cannot figure out why this doesn't work...
+			
+			
+			units.SetFormatOptions(SpecTypeId.Length, foLength);
+			units.SetFormatOptions(SpecTypeId.Volume, foVolume);
+			
+			using (Transaction t = new Transaction(doc, "Set Units"))
+			       {
+				t.Start();
+				
+				doc.SetUnits(units);
+				
+				t.Commit();
+			       }
+		}
+		public void SelectElementWithFilter()
+		{
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Reference myRefWall = uidoc.Selection.PickObject(ObjectType.Element, new GenericSelectionFilter("Walls"), "Select a Wall");
+			Reference myRefFloor = uidoc.Selection.PickObject(ObjectType.Element, new GenericSelectionFilter("Floors"), "Select a Floor");
+
+
+			
+			Element e = doc.GetElement(myRefWall);
+			Element ef = doc.GetElement(myRefFloor);
+			
+			string designOptionName = "<none>";
+			if (e.DesignOption != null)
+			{
+				designOptionName = e.DesignOption.Name;
+			}
+			TaskDialog.Show("Element Info", e.Name + Environment.NewLine + e.Id + Environment.NewLine + designOptionName);
+			
+			if (ef.DesignOption != null)
+			{
+				designOptionName = ef.DesignOption.Name;
+			}
+			TaskDialog.Show("Element Info", ef.Name + Environment.NewLine + ef.Id + Environment.NewLine + designOptionName);
+		
+		}
+		
+		public class GenericSelectionFilter : ISelectionFilter
+		{
+			
+			static string CategoryName = "";
+			
+			public GenericSelectionFilter(string name)
+			{
+				CategoryName = name;
+			}
+			
+			public bool AllowElement(Element e)
+			{
+				if (e.Category.Name == CategoryName)
+					return true;
+				
+				return false;
+			}
+			public bool AllowReference(Reference r, XYZ point)
+			{
+				return true;
+			}
+		}
+		
+		public void registerSaveEvent()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			doc.DocumentSaving += new EventHandler<DocumentSavingEventArgs>(myDocumentSaving);
+		}
+		
+		private void myDocumentSaving(object sender, DocumentSavingEventArgs args)
+		{
+			Document doc = sender as Document;
+			string user = doc.Application.Username;
+			string filename = doc.PathName;
+			string filenameShort = Path.GetFileNameWithoutExtension(filename);
+			string tempFolder = Path.GetTempPath();
+			string outputFile = Path.Combine(tempFolder,filenameShort + ".txt");
+			
+			using (StreamWriter sw = new StreamWriter(outputFile, true))
+			{
+				sw.WriteLine(DateTime.Now + ": " + user);
+			}
+		}
+		
+		public void ExtensibleStorage_SetData()
+		{
+			string schemaName = "PurchasingInfo";
+			
+			// check to see if schema exists
+			Schema mySchema = Schema.ListSchemas().FirstOrDefault(q => q.SchemaName == schemaName);
+			
+			if (mySchema == null)
+			{
+				Guid myGuid = new Guid("6e402ce9-66fd-456a-9c55-701008547f73");
+				SchemaBuilder sb = new SchemaBuilder(myGuid);
+				sb.SetSchemaName(schemaName);
+				
+				// add fields (properties) to schema, defining the name and data type for each field
+				FieldBuilder fbCost = sb.AddSimpleField("Cost", typeof(Int32));
+				FieldBuilder fbShippingWeight = sb.AddSimpleField("ShippingWeight", typeof(double));
+				// set the Unit Type of the Shipping Weight
+				fbShippingWeight.SetSpec(SpecTypeId.Mass);
+				
+				//conclude the creation of the schema
+				mySchema = sb.Finish();
+			}
+			
+			//create entity of schema (like an instance of a class)
+			Entity myEntity = new Entity(mySchema);
+			
+			//get the fields from the schema
+			Field myCostField = mySchema.GetField("Cost");
+			Field myShipWeightField = mySchema.GetField("ShippingWeight");
+			
+			// set value for this entity for each field
+			myEntity.Set<Int32>(myCostField, 125);
+			myEntity.Set<double>(myShipWeightField, 1, UnitTypeId.Kilograms);
+			
+			//prompt user to select an element
+			
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element element = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			
+			// store the data in the element
+			using (Transaction t = new Transaction(doc, "Store Data"))
+			{
+				t.Start();
+				
+				element.SetEntity(myEntity);
+				
+				t.Commit();
+			}
+			
+		}
+		
+		public void ExtensibleStorage_GetData()
+		{
+			//get the schema with ListSchemas
+			string schemaName = "PurchasingInfo";
+			Schema mySchema = Schema.ListSchemas().FirstOrDefault(q => q.SchemaName == schemaName);
+			
+			//diagnostics in the event that the desired schema was not found
+			if (mySchema == null)
+			{
+				string allSchema = "";
+				foreach(Schema s in Schema.ListSchemas())
+				{
+					allSchema += s.SchemaName + Environment.NewLine;
+				}
+				TaskDialog.Show("error", "Schema not found " + schemaName);
+				TaskDialog.Show("All Schemas", allSchema);
+				return;
+			}
+			
+			// get the fields from the schema
+			Field myCostField = mySchema.GetField("Cost");
+			Field myShipWeightField = mySchema.GetField("ShippingWeight");
+			
+			//prompt user to select an element
+			UIDocument uidoc = this.ActiveUIDocument;
+			Document doc = uidoc.Document;
+			
+			Element element = doc.GetElement(uidoc.Selection.PickObject(ObjectType.Element));
+			
+			//get the entity from the element
+			Entity myEntity = element.GetEntity(mySchema);
+			
+			//get the data from the entity
+			Int32 cost = myEntity.Get<Int32>("Cost");
+			double weight = myEntity.Get<double>(myShipWeightField, UnitTypeId.PoundsMass);
+			
+			TaskDialog.Show(schemaName, cost + Environment.NewLine + weight);
+		}
+		
+		public void referenceIntersector()
+		{
+			Document doc = this.ActiveUIDocument.Document;
+			View3D view3D = doc.ActiveView as View3D;
+			if (view3D == null)
+			{
+				TaskDialog.Show("Error", "Active view must be a 3d view");
+				return;
+			}
+			ReferenceIntersector ri = new ReferenceIntersector(view3D);
+			IList<ReferenceWithContext> refWithContextList = ri.Find(XYZ.Zero, XYZ.BasisY);
+			string data = "";
+			foreach (ReferenceWithContext rwc in refWithContextList)
+			{
+				Reference r = rwc.GetReference();
+				double d = rwc.Proximity;
+				Element e = doc.GetElement(r);
+
+				
+				GeometryObject o = e.GetGeometryObjectFromReference(r);
+				string oType;
+				try
+				{
+					oType = o.GetType().ToString();
+				}
+				catch
+				{
+					continue;
+				}
+				
+				data += oType + " - " + e.Name + " - " + d + Environment.NewLine;
+			}
+			TaskDialog.Show("Elements Hit", data);
+		}
+		
+		public class TextTypeUpdater : IUpdater
+		{
+			static AddInId m_appId;
+			static UpdaterId m_updaterId;
+			//constructor takes the AddInId for the add-in associated with this updater
+			public TextTypeUpdater(AddInId id)
+			{
+				m_appId = id;
+				// every updater must have a unique ID
+				m_updaterId = new UpdaterId(m_appId, new Guid("6dc5c664-fc17-4be3-942a-d0f097379f39"));
+			}
+			
+			public void Execute(UpdaterData data)
+			{
+				Document doc = data.GetDocument();
+				
+				// loop through the list of added elements
+				foreach (ElementId addedElemId in data.GetAddedElementIds())
+				{
+					TextNoteType textNoteType = doc.GetElement(addedElemId) as TextNoteType;
+					string name = textNoteType.Name;
+					doc.Delete(addedElemId);
+					TaskDialog.Show("New Element Deleted!", "Text type '" + name + "' has been deleted. Please use existing text types.");
+				}
+			}
+			public string GetAdditionalInformation(){return "Text note type check";}
+			public ChangePriority GetChangePriority(){return ChangePriority.FloorsRoofsStructuralWalls;}
+			public UpdaterId GetUpdaterId(){return m_updaterId;}
+			public string GetUpdaterName(){return "Text note type";}
+		}
+		
+		public void RegisterUpdater()
+		{
+			TextTypeUpdater updater = new TextTypeUpdater(this.Application.ActiveAddInId);
+			UpdaterRegistry.RegisterUpdater(updater);
+			
+			// Trigger will occur only for TextNoteType elements
+			ElementClassFilter textNoteTypeFilter = new ElementClassFilter(typeof(TextNoteType));
+			
+			// GetChangeTypeElementAddition specifies that the trigger will occur when elements are added
+			//Other options are GetChangeTypeAny, GetChangeTypeElementDeletion, GetChangeTypeGeometry, GetChangeTypeParameter
+			UpdaterRegistry.AddTrigger(updater.GetUpdaterId(), textNoteTypeFilter, Element.GetChangeTypeElementAddition());
+		}
+		
+		public void UnregisterUpdater()
+		{
+			TextTypeUpdater updater = new TextTypeUpdater(this.Application.ActiveAddInId);
+			UpdaterRegistry.UnregisterUpdater(updater.GetUpdaterId());
 		}
 	}
 }
